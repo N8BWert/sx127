@@ -121,9 +121,7 @@ impl<SPI, CS, RESET, DELAY, E> LoRa<SPI, CS, RESET, DELAY>
                             -> Result<usize,Error<E, CS::Error, RESET::Error>>{
         
         // check if radio is currently transmitting
-        if self.transmitting()? {
-            return Err(Transmitting);
-        }
+        while self.transmitting()? {}
 
         // set radio to standby and wait for it to be ready
         self.set_mode(RadioMode::Stdby)?;
