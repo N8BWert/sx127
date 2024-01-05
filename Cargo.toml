@@ -8,6 +8,10 @@ edition = "2018"
 embedded-hal = "~0.2"
 bit_field = "~0.10"
 
+[dev-dependencies]
+rppal = { version = "0.14.1", features = ["hal"] }
+
 [features]
-version_0x09 = []
-default = []
+default = ["fsk-ook"]
+lora = []
+fsk-ook = []
