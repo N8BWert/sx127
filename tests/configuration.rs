@@ -26,7 +26,7 @@ fn test_write_sample_configuration() {
     let sample_configuration = Config{
         modulation_type: sx127::config::ModulationType::FSK,
         bitrate: 100_000u32,
-        frequency: 915,
+        frequency: 915_000,
         rx_timeout: None,
         preamble_size: 1u16,
         sync_word: Some(b"b"),

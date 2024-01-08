@@ -41,13 +41,18 @@ pub enum PaRamp {
     PA10 = 0b1111,
 }
 
+const FSTEP: u32 = 61;
+
+// TODO: Error Check the Config
+
 #[cfg(feature = "fsk-ook")]
 #[derive(Clone, Copy, Eq, PartialEq, PartialOrd, Ord)]
 pub struct Config<'a> {
     pub modulation_type: ModulationType,
     // MAX is Roughly 300 kbps
     pub bitrate: u32,
-    pub frequency: u16,
+    // Carrier Frequency for the Device (Hz) [137-175]^[410-525]^[862-1020] MHz
+    pub frequency: u32,
     pub rx_timeout: Option<u8>,
     pub preamble_size: u16,
     pub sync_word: Option<&'a [u8]>,
@@ -61,9 +66,9 @@ pub struct Config<'a> {
 
 #[cfg(feature = "fsk-ook")]
 impl<'a> Config<'a> {
-    pub fn register_values(&self) -> ([u8; 21], [u8; 21]) {
-        let mut registers = [0u8; 21];
-        let mut values = [0u8; 21];
+    pub fn register_values(&self) -> ([u8; 22], [u8; 22]) {
+        let mut registers = [0u8; 22];
+        let mut values = [0u8; 22];
         let mut current_register = 0x01;
 
         // Set Modulation Type
@@ -85,12 +90,18 @@ impl<'a> Config<'a> {
         current_register += 1;
 
         // Set Frequency
+        // Frequency = FSTEP * Frf(23;0) -> Frequency / FSTEP = Frf(23;0)
+        let frf = self.frequency / FSTEP;
         registers[current_register] = 0x06;
-        values[current_register] = ((self.frequency & 0xFF00) >> 8) as u8;
+        values[current_register] = ((frf & 0xFF0000) >> 16) as u8;
         current_register += 1;
 
         registers[current_register] = 0x07;
-        values[current_register] = (self.frequency & 0x00FF) as u8;
+        values[current_register] = ((frf & 0x00FF00) >> 8) as u8;
+        current_register += 1;
+
+        registers[current_register] = 0x08;
+        values[current_register] = (frf & 0x0000FF) as u8;
         current_register += 1;
 
         // Set PaRamp

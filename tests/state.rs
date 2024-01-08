@@ -29,7 +29,7 @@ fn test_to_tx() {
     let sample_configuration = Config{
         modulation_type: sx127::config::ModulationType::FSK,
         bitrate: 100_000u32,
-        frequency: 915,
+        frequency: 915_000,
         rx_timeout: None,
         preamble_size: 1u16,
         sync_word: Some(b"b"),
@@ -82,7 +82,7 @@ fn test_to_rx() {
     let sample_configuration = Config{
         modulation_type: sx127::config::ModulationType::FSK,
         bitrate: 100_000u32,
-        frequency: 915,
+        frequency: 915_000,
         rx_timeout: None,
         preamble_size: 1u16,
         sync_word: Some(b"b"),
@@ -134,7 +134,7 @@ fn rx_to_tx() {
     let sample_configuration = Config{
         modulation_type: sx127::config::ModulationType::FSK,
         bitrate: 100_000u32,
-        frequency: 915,
+        frequency: 915_000,
         rx_timeout: None,
         preamble_size: 1u16,
         sync_word: Some(b"b"),
@@ -192,7 +192,7 @@ fn tx_to_rx() {
     let sample_configuration = Config{
         modulation_type: sx127::config::ModulationType::FSK,
         bitrate: 100_000u32,
-        frequency: 915,
+        frequency: 915_000,
         rx_timeout: None,
         preamble_size: 1u16,
         sync_word: Some(b"b"),
