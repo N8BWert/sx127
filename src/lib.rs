@@ -244,7 +244,7 @@ impl<GPIOE, SPIE, SPI, CS, RESET, DELAY> Radio<SPI, CS, RESET, DELAY, GPIOE, SPI
                 let new_contents = (current_contents & 0b1111_1000) | 0b001;
                 self.spi_write(0x01, new_contents, spi)?;
 
-                // TODO: Wait Some Amount of Time for State Change to Latch
+                // TODO: Wait Roughly (60us) for State Change to Latch
             },
             RadioMode::Standby => (),
         }
@@ -301,7 +301,7 @@ impl<GPIOE, SPIE, SPI, CS, RESET, DELAY> Radio<SPI, CS, RESET, DELAY, GPIOE, SPI
     }
 
     // Read the value of a register on the radio
-    fn spi_read(&mut self, register: u8, spi: &mut SPI) -> Result<u8, Error<GPIOE, SPIE>> {
+    pub fn spi_read(&mut self, register: u8, spi: &mut SPI) -> Result<u8, Error<GPIOE, SPIE>> {
         let mut read_command = [register, 0x00];
 
         match self.cs.as_mut() {
@@ -325,7 +325,7 @@ impl<GPIOE, SPIE, SPI, CS, RESET, DELAY> Radio<SPI, CS, RESET, DELAY, GPIOE, SPI
     }
 
     // Write a specific value into a given register on the radio.
-    fn spi_write(&mut self, register: u8, data: u8, spi: &mut SPI) -> Result<(), Error<GPIOE, SPIE>> {
+    pub fn spi_write(&mut self, register: u8, data: u8, spi: &mut SPI) -> Result<(), Error<GPIOE, SPIE>> {
         let mut write_command = [0b1000_0000 | register, data];
 
         match self.cs.as_mut() {

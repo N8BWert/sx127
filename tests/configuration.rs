@@ -1,6 +1,17 @@
 //!
 //! Executable Tests for Configuration runnable on the raspberry pi 4.
 //! 
+//! Wiring (Raspberry Pi -> RFM9x LoRa):
+//! 3v3 Power (1) -> VIM
+//! Ground (6) -> GND
+//! _ -> EN
+//! _ -> G0
+//! GPIO 11 (23) -> SCK
+//! GPIO 9 (21) -> MISO
+//! GPIO 10 (19) -> MOSI
+//! GPIO 8 (24) -> CS
+//! GPIO 21 (40) -> RESET
+//! 
 
 use rppal::spi::{Spi, Bus, SlaveSelect, Mode};
 use rppal::gpio::Gpio;
@@ -14,7 +25,8 @@ use sx127::error::Error;
 fn test_write_sample_configuration() {
     let sample_configuration = Config{
         modulation_type: sx127::config::ModulationType::FSK,
-        bitrate: 0u16,
+        bitrate: 100_000u32,
+        frequency: 915,
         rx_timeout: None,
         preamble_size: 1u16,
         sync_word: Some(b"b"),
@@ -23,6 +35,7 @@ fn test_write_sample_configuration() {
         payload_length: None,
         node_address: Some(0u8),
         broadcast_address: None,
+        pa_ramp: Some(sx127::config::PaRamp::PA50),
     };
 
     let gpio = Gpio::new().unwrap();
@@ -34,7 +47,7 @@ fn test_write_sample_configuration() {
     // Initialize the Radio Driver
     let radio = Radio::new(sample_configuration, Some(cs), reset, &mut delay, &mut spi);
 
-    let _radio = match radio {
+    let mut radio = match radio {
         Ok(radio) => radio,
         Err(err) => match err {
             Error::DataExceedsFifoSize => panic!("Data Exceeds FIFO Size"),
@@ -44,4 +57,14 @@ fn test_write_sample_configuration() {
             Error::GpioSpiError(_) => panic!("Unexpected GPIO and SPI Error Occurred"),
         }
     };
+
+    for register in 0x00..=0x41 {
+        let result = radio.spi_read(register, &mut spi);
+
+        if let Ok(result) = result {
+            println!("Read {:#010b} from Register {:#x}", result, register);
+        } else {
+            println!("Unable to Read from Register {:#x}", register);
+        }
+    }
 }
