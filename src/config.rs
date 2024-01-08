@@ -53,7 +53,8 @@ pub struct Config<'a> {
     pub bitrate: u32,
     // Carrier Frequency for the Device (Hz) [137-175]^[410-525]^[862-1020] MHz
     pub frequency: u32,
-    pub rx_timeout: Option<u8>,
+    /// Rx Timeout in ms (TODO: Figure this out)
+    pub rx_timeout: Option<u32>,
     pub preamble_size: u16,
     pub sync_word: Option<&'a [u8]>,
     pub crc_on: bool,
@@ -112,9 +113,11 @@ impl<'a> Config<'a> {
         }
 
         // Set Rx Timeout
+        // Timeout = 16 * Timeout(0;8) * Bitrate => Timeout(0;8) = Timeout / 16 / Bitrate
         if let Some(timeout) = self.rx_timeout {
+            let timeout = timeout / (16 * self.bitrate);
             registers[current_register] = 0x20 ;
-            values[current_register] = timeout;
+            values[current_register] = (timeout & 0xFF) as u8;
             current_register += 1;
         }
 
