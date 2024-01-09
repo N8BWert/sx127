@@ -4,15 +4,15 @@
 //! The main point in this test is to figure out how the FIFO addressing mode works.
 //! 
 //! Wiring (Raspberry Pi -> RFM9x LoRa):
-//! 3v3 Power (1) -> VIN
-//! Ground (6) -> GND
+//! 3v3 Power (17) -> VIN
+//! Ground (20) -> GND
 //! _ -> EN
 //! _ -> G0
 //! GPIO 11 (23) -> SCK
 //! GPIO 9 (21) -> MISO
 //! GPIO 10 (19) -> MOSI
 //! GPIO 8 (24) -> CS
-//! GPIO 21 (40) -> RESET
+//! GPIO 25 (22) -> RESET
 //! 
 
 use rppal::spi::{Spi, Bus, SlaveSelect, Mode};
@@ -43,7 +43,7 @@ fn test_no_intermittant_addresses() {
     let gpio = Gpio::new().unwrap();
     let mut spi = Spi::new(Bus::Spi0, SlaveSelect::Ss0, 1_000_000, Mode::Mode0).unwrap();
     let cs = gpio.get(8u8).unwrap().into_output();
-    let reset = gpio.get(21u8).unwrap().into_output();
+    let reset = gpio.get(25u8).unwrap().into_output();
     let mut delay = Delay::new();
 
     // Initialize the Radio Driver
@@ -61,51 +61,20 @@ fn test_no_intermittant_addresses() {
     };
 
     // First Test Write
-    println!("Writing {:?} To SPI", [100u8; 64]);
+    let mut write_buffer = [0x00; 65];
+    write_buffer[0] = 0b1000_0000;
+    for i in 0..64 {
+        write_buffer[i+1] = (i+1) as u8;
+    }
 
-    if radio.test_write_fifo_1(&mut spi).is_err() {
+    if radio.transfer_data_fifo(&mut write_buffer, &mut spi).is_err() {
         panic!("Unable to Write to FIFO");
     }
 
-    if let Ok(data) = radio.test_read_fifo_1(&mut spi) {
-        println!("Received {:?} With Method 1", data);
-    } else {
-        panic!("Unable to Read from FIFO");
-    }
-
-    if let Ok(data) = radio.test_read_fifo_2(&mut spi) {
-        println!("Received {:?} With Method 2", data);
-    } else {
-        panic!("Unable to Read from FIFO");
-    }
-
-    if let Ok(data) = radio.test_read_fifo_3(&mut spi) {
-        println!("Received {:?} With Method 3", data);
-    } else {
-        panic!("Unable to Read from FIFO");
-    }
-
-    // Second Test Write
-    println!("Writing {:?} To SPI", [100u8; 64]);
-
-    if radio.test_write_fifo_2(&mut spi).is_err() {
-        panic!("Unable to Write to FIFO");
-    }
-
-    if let Ok(data) = radio.test_read_fifo_1(&mut spi) {
-        println!("Received {:?} With Method 1", data);
-    } else {
-        panic!("Unable to Read from FIFO");
-    }
-
-    if let Ok(data) = radio.test_read_fifo_2(&mut spi) {
-        println!("Received {:?} With Method 2", data);
-    } else {
-        panic!("Unable to Read from FIFO");
-    }
-
-    if let Ok(data) = radio.test_read_fifo_3(&mut spi) {
-        println!("Received {:?} With Method 3", data);
+    let mut read_buffer = [0x00; 65];
+    
+    if radio.transfer_data_fifo(&mut read_buffer, &mut spi).is_ok() {
+        println!("Wrote {:?} To Fifo", read_buffer);
     } else {
         panic!("Unable to Read from FIFO");
     }

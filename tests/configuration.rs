@@ -2,15 +2,15 @@
 //! Executable Tests for Configuration runnable on the raspberry pi 4.
 //! 
 //! Wiring (Raspberry Pi -> RFM9x LoRa):
-//! 3v3 Power (1) -> VIM
-//! Ground (6) -> GND
+//! 3v3 Power (17) -> VIM
+//! Ground (20) -> GND
 //! _ -> EN
 //! _ -> G0
 //! GPIO 11 (23) -> SCK
 //! GPIO 9 (21) -> MISO
 //! GPIO 10 (19) -> MOSI
 //! GPIO 8 (24) -> CS
-//! GPIO 21 (40) -> RESET
+//! GPIO 25 (22) -> RESET
 //! 
 
 use rppal::spi::{Spi, Bus, SlaveSelect, Mode};
@@ -41,7 +41,7 @@ fn test_write_sample_configuration() {
     let gpio = Gpio::new().unwrap();
     let mut spi = Spi::new(Bus::Spi0, SlaveSelect::Ss0, 1_000_000, Mode::Mode0).unwrap();
     let cs = gpio.get(8u8).unwrap().into_output();
-    let reset = gpio.get(21u8).unwrap().into_output();
+    let reset = gpio.get(25u8).unwrap().into_output();
     let mut delay = Delay::new();
 
     // Initialize the Radio Driver

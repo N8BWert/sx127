@@ -8,12 +8,12 @@
 //! Ground (6) -> GND
 //! _ -> EN
 //! GPIO 24 (18) -> G0
-//! GPIO 25 (22) -> G4
+//! GPIO 22 (15) -> G4
 //! GPIO 11 (23) -> SCK
 //! GPIO 9 (21) -> MISO
 //! GPIO 10 (19) -> MOSI
 //! GPIO 8 (24) -> CS
-//! GPIO 21 (40) -> RESET
+//! GPIO 25 (22) -> RESET
 //! 
 //! Tx:
 //! 3v3 Power(1) -> VIN
@@ -40,11 +40,12 @@ use sx127::error::Error;
 
 #[test]
 fn test_rx_timeout_interrupt() {
+    // TODO: Figure out what units this is
     let config = Config {
         modulation_type: ModulationType::FSK,
         bitrate: 100_000,
         frequency: 915_000,
-        rx_timeout: Some(100_000),
+        rx_timeout: Some(1600000),
         preamble_size: 1,
         sync_word: Some(b"b"),
         crc_on: true,
@@ -75,7 +76,7 @@ fn test_rx_timeout_interrupt() {
         }
     };
 
-    let mut timeout_interrupt_pin = gpio.get(25u8).unwrap().into_input();
+    let mut timeout_interrupt_pin = gpio.get(22u8).unwrap().into_input();
     timeout_interrupt_pin.set_async_interrupt(rppal::gpio::Trigger::RisingEdge, move |_| {
         println!("Received Interrupt From Rx Timeout");
     }).unwrap();
@@ -108,7 +109,7 @@ fn test_tx_complete_interrupt() {
     let gpio = Gpio::new().unwrap();
     let mut spi = Spi::new(Bus::Spi0, SlaveSelect::Ss0, 1_000_000, Mode::Mode0).unwrap();
     let cs = gpio.get(8u8).unwrap().into_output();
-    let reset = gpio.get(21u8).unwrap().into_output();
+    let reset = gpio.get(25u8).unwrap().into_output();
     let mut delay = Delay::new();
 
     // Initialize the Radio Driver
@@ -133,6 +134,7 @@ fn test_tx_complete_interrupt() {
     if radio.send_data(b"Hello World", &mut spi).is_err() {
         panic!("Unable to Send Data");
     }
+    println!("Sending Data");
 
     thread::sleep(Duration::from_secs(3));
 }
@@ -147,9 +149,9 @@ fn test_rx_interrupt() {
         preamble_size: 1,
         sync_word: Some(b"b"),
         crc_on: true,
-        address_filtering: AddressFiltering::NodeAddress,
+        address_filtering: AddressFiltering::NONE,
         payload_length: None,
-        node_address: Some(0u8),
+        node_address: None,
         broadcast_address: None,
         pa_ramp: Some(PaRamp::PA50),
     };
@@ -162,9 +164,9 @@ fn test_rx_interrupt() {
         preamble_size: 1,
         sync_word: Some(b"b"),
         crc_on: true,
-        address_filtering: AddressFiltering::NodeAddress,
+        address_filtering: AddressFiltering::NONE,
         payload_length: None,
-        node_address: Some(0u8),
+        node_address: None,
         broadcast_address: None,
         pa_ramp: Some(PaRamp::PA50),
     };
@@ -174,7 +176,7 @@ fn test_rx_interrupt() {
     let mut tx_spi = Spi::new(Bus::Spi1, SlaveSelect::Ss0, 1_000_000, Mode::Mode0).unwrap();
     let rx_cs = gpio.get(8u8).unwrap().into_output();
     let tx_cs = gpio.get(16u8).unwrap().into_output();
-    let rx_reset = gpio.get(21u8).unwrap().into_output();
+    let rx_reset = gpio.get(25u8).unwrap().into_output();
     let tx_reset = gpio.get(26u8).unwrap().into_output();
     let mut rx_delay = Delay::new();
     let mut tx_delay = Delay::new();
@@ -214,9 +216,24 @@ fn test_rx_interrupt() {
         panic!("Unable to Set to Rx");
     }
 
+    thread::sleep(Duration::from_secs(1));
+
+    let mut tx_interrupt = gpio.get(13).unwrap().into_input();
+    tx_interrupt.set_async_interrupt(rppal::gpio::Trigger::RisingEdge, move |_| {
+        println!("Sent Data");
+    }).unwrap();
+
     if tx_radio.send_data(b"Hello World", &mut tx_spi).is_err() {
         panic!("Unable to Send Data");
     }
 
     thread::sleep(Duration::from_secs(5));
+
+    let mut buffer = [0x00; 65];
+    tx_radio.transfer_data_fifo(&mut buffer, &mut tx_spi);
+    println!("Buffer: {:?}", buffer);
+
+    let mut buffer = [0x00; 65];
+    rx_radio.transfer_data_fifo(&mut buffer, &mut rx_spi);
+    println!("Buffer: {:?}", buffer);
 }

@@ -80,29 +80,36 @@ impl<'a> Config<'a> {
         // Set Bitrate
         // Bit Rate = FXOSC / (Bitrate(15,0) + BitRateFrac/16) = FXOSC / BitRate(15,0)
         // BitRate(15, 0) = FXOSC / Bit Rate
-        let bitrate = (32_000_000 / self.bitrate) as u16;
+        // CURRENTLY HARDCODED TO 250 kbps
+        let _bitrate = (32_000_000 / self.bitrate) as u16;
 
         registers[current_register] = 0x02;
-        values[current_register] = ((bitrate & 0xFF00) >> 8) as u8;
+        // values[current_register] = ((bitrate & 0xFF00) >> 8) as u8;
+        values[current_register] = 0x00;
         current_register += 1;
 
         registers[current_register] = 0x03;
-        values[current_register] = (bitrate & 0x00FF) as u8;
+        // values[current_register] = (bitrate & 0x00FF) as u8;
+        values[current_register] = 0x80;
         current_register += 1;
 
         // Set Frequency
         // Frequency = FSTEP * Frf(23;0) -> Frequency / FSTEP = Frf(23;0)
-        let frf = self.frequency / FSTEP;
+        // CURRENTLY HARDCODED TO 900 MHz
+        let _frf = self.frequency / FSTEP;
         registers[current_register] = 0x06;
-        values[current_register] = ((frf & 0xFF0000) >> 16) as u8;
+        // values[current_register] = ((frf & 0xFF0000) >> 16) as u8;
+        values[current_register] = 0xE1;
         current_register += 1;
 
         registers[current_register] = 0x07;
-        values[current_register] = ((frf & 0x00FF00) >> 8) as u8;
+        // values[current_register] = ((frf & 0x00FF00) >> 8) as u8;
+        values[current_register] = 0x21;
         current_register += 1;
 
         registers[current_register] = 0x08;
-        values[current_register] = (frf & 0x0000FF) as u8;
+        // values[current_register] = (frf & 0x0000FF) as u8;
+        values[current_register] = 0x32;
         current_register += 1;
 
         // Set PaRamp

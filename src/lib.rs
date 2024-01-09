@@ -1,5 +1,5 @@
 #![allow(unused_assignments)]
-#![no_std]
+// #![no_std]
 #![crate_type = "lib"]
 #![crate_name = "sx127"]
 
@@ -123,17 +123,12 @@ impl<GPIOE, SPIE, SPI, CS, RESET, DELAY> Radio<SPI, CS, RESET, DELAY, GPIOE, SPI
             self.to_standby(spi)?;
         }
 
-        // Enqueue the data into the FIFO
-        let mut address = 0x00;
-        for data in data {
-            self.write_fifo(address, *data, spi)?;
-            address += 1;
-        }
-
-        // Zero the Remaining Bytes
-        for addr in address..64 {
-            self.write_fifo(addr, 0x00, spi)?;
-        }
+        // Enqueue the data into the FIFO (This could be optimized if less bytes need to be written)
+        let mut write_buffer = [0u8; 65];
+        write_buffer[0] = 0b1000_0000;
+        write_buffer[1..=data.len()].copy_from_slice(data);
+        println!("Write Buffer {:?}", write_buffer);
+        self.transfer_data_fifo(&mut write_buffer, spi)?;
 
         // Switch to Tx Mode.
         self.to_tx(spi)?;
@@ -157,9 +152,11 @@ impl<GPIOE, SPIE, SPI, CS, RESET, DELAY> Radio<SPI, CS, RESET, DELAY, GPIOE, SPI
             self.to_standby(spi)?;
         }
 
-        for address in 0..buffer.len() {
-            buffer[address] = self.read_fifo(address as u8, spi)?;
-        }
+        let mut read_buffer = [0x00; 65];
+        self.transfer_data_fifo(&mut read_buffer, spi)?;
+
+        let buffer_length = buffer.len();
+        buffer[..].copy_from_slice(&read_buffer[..buffer_length]);
 
         Ok(())
     }
@@ -182,21 +179,17 @@ impl<GPIOE, SPIE, SPI, CS, RESET, DELAY> Radio<SPI, CS, RESET, DELAY, GPIOE, SPI
         }
 
         // Dequeue Data into the buffer
-        for address in 0..buffer.len() {
-            buffer[address] = self.read_fifo(address as u8, spi)?;
-        }
+        let mut read_buffer = [0x00; 65];
+        self.transfer_data_fifo(&mut read_buffer, spi)?;
+    
+        let buffer_length = buffer.len();
+        buffer[..].copy_from_slice(&read_buffer[..buffer_length]);
 
         // Enqueue the data into the FIFO.
-        let mut address = 0x00;
-        for data in data {
-            self.write_fifo(address, *data, spi)?;
-            address += 1;
-        }
-        
-        // Zero the Remaining Bytes
-        for addr in address..64 {
-            self.write_fifo(addr, 0x00, spi)?;
-        }
+        let mut write_buffer = [0x00; 65];
+        write_buffer[0] = 0b1000_0000;
+        write_buffer[1..=data.len()].copy_from_slice(data);
+        self.transfer_data_fifo(&mut write_buffer, spi)?;
 
         // Switch to Tx Mode.
         self.to_tx(spi)?;
@@ -252,117 +245,8 @@ impl<GPIOE, SPIE, SPI, CS, RESET, DELAY> Radio<SPI, CS, RESET, DELAY, GPIOE, SPI
         Ok(())
     }
 
-    // Read a value from the fifo register on the radio
-    fn read_fifo(&mut self, address: u8, spi: &mut SPI) -> Result<u8, Error<GPIOE, SPIE>> {
-        let mut read_command = [0x00, address, 0x00];
-
-        match self.cs.as_mut() {
-            Some(cs) => {
-                cs.set_low().map_err(Error::GpioError)?;
-                let transfer_result = spi.transfer(&mut read_command);
-                let gpio_error = cs.set_high();
-
-                match (transfer_result, gpio_error) {
-                    (Err(err), Ok(_)) => Err(Error::SpiError(err)),
-                    (Ok(_), Err(err)) => Err(Error::GpioError(err)),
-                    (Err(spi_err), Err(gpio_err)) => Err(Error::GpioSpiError((gpio_err, spi_err))),
-                    _ => Ok(read_command[2]),
-                }
-            },
-            None => {
-                spi.transfer(&mut read_command).map_err(Error::SpiError)?;
-                Ok(read_command[2])
-            }
-        }
-    }
-
-    /// Write to FIFO Test 1 (Check whether writing a continuous stream of data will fill the FIFO)
-    pub fn test_write_fifo_1(&mut self, spi: &mut SPI) -> Result<(), Error<GPIOE, SPIE>> {
-        let mut write_command = [100u8; 66];
-        write_command[0] = 0x00;
-        write_command[1] = 0x00;
-
-        self.write_data_fifo(&mut write_command, spi)
-    }
-
-    /// Write to FIFO Test 2
-    /// 
-    /// Check whether writing a continuous stream of data with addresses intersperced will fill the FIFO
-    pub fn test_write_fifo_2(&mut self, spi: &mut SPI) -> Result<(), Error<GPIOE, SPIE>> {
-        let mut write_command = [100u8; 129];
-
-        write_command[0] = 0x00;
-    
-        let mut address = 0x00;
-        for i in 0..(64/2) {
-            write_command[i*2+1] = address;
-            address += 1;
-        }
-
-        self.write_data_fifo(&mut write_command, spi)
-    }
-
-    /// Read from FIFO Test 1
-    /// 
-    /// Check whether reading from the fifo increments the address automaticallly or if I have to do it.
-    pub fn test_read_fifo_1(&mut self, spi: &mut SPI) -> Result<[u8; 64], Error<GPIOE, SPIE>> {
-        let mut read_buffer = [0x00; 66];
-
-        self.transfer_data_fifo(&mut read_buffer, spi)?;
-
-        let mut return_buffer = [0u8; 64];
-        return_buffer[..].copy_from_slice(&read_buffer[2..]);
-
-        Ok(return_buffer)
-    }
-
-    /// Read from FIFO Test 2
-    /// 
-    /// Do I Send Address + Blank Data For Each Point
-    pub fn test_read_fifo_2(&mut self, spi: &mut SPI) -> Result<[u8; 64], Error<GPIOE, SPIE>> {
-        let mut read_buffer = [0x00; 129];
-        
-        let mut address = 0x00;
-        for i in 0..(64/2) {
-            read_buffer[i*2+1] = address;
-            address += 1;
-        }
-
-        self.transfer_data_fifo(&mut read_buffer, spi)?;
-
-        let mut return_buffer = [0u8; 64];
-        let mut buffer_ptr = 0;
-
-        for i in 2..129 {
-            if i % 2 == 0 {
-                return_buffer[buffer_ptr] = return_buffer[i];
-                buffer_ptr += 1;
-            }
-        }
-
-        Ok(return_buffer)
-    }
-
-    /// Read from FIFO Test 3
-    /// 
-    /// Do I Send Address And Get Data in Next Return
-    pub fn test_read_fifo_3(&mut self, spi: &mut SPI) -> Result<[u8; 64], Error<GPIOE, SPIE>> {
-        let mut read_buffer = [0x00; 65];
-
-        for i in 0..64 {
-            read_buffer[i+1] = i as u8;
-        }
-
-        self.transfer_data_fifo(&mut read_buffer, spi)?;
-
-        let mut return_buffer = [0u8; 64];
-        return_buffer[..].copy_from_slice(&read_buffer[1..]);
-
-        Ok(return_buffer)
-    }
-
     // Helper Function to Transfer a Large SPI Command
-    fn transfer_data_fifo(&mut self, data: &mut [u8], spi: &mut SPI) -> Result<(), Error<GPIOE, SPIE>> {
+    pub fn transfer_data_fifo(&mut self, data: &mut [u8], spi: &mut SPI) -> Result<(), Error<GPIOE, SPIE>> {
         match self.cs.as_mut() {
             Some(cs) => {
                 cs.set_low().map_err(Error::GpioError)?;
@@ -378,52 +262,6 @@ impl<GPIOE, SPIE, SPI, CS, RESET, DELAY> Radio<SPI, CS, RESET, DELAY, GPIOE, SPI
             },
             None => {
                 spi.transfer(data).map_err(Error::SpiError)?;
-                Ok(())
-            }
-        }
-    }
-
-    // Helper Function to Write a Large SPI Command
-    fn write_data_fifo(&mut self, data: &mut [u8], spi: &mut SPI) -> Result<(), Error<GPIOE, SPIE>> {
-        match self.cs.as_mut() {
-            Some(cs) => {
-                cs.set_low().map_err(Error::GpioError)?;
-                let transfer_result = spi.transfer(data);
-                let gpio_error = cs.set_high();
-
-                match (transfer_result, gpio_error) {
-                    (Err(err), Ok(_)) => Err(Error::SpiError(err)),
-                    (Ok(_), Err(err)) => Err(Error::GpioError(err)),
-                    (Err(spi_err), Err(gpio_err)) => Err(Error::GpioSpiError((gpio_err, spi_err))),
-                    _ => Ok(())
-                }
-            },
-            None => {
-                spi.transfer(data).map_err(Error::SpiError)?;
-                Ok(())
-            }
-        }
-    }
-
-    // Write a value to the fifo register on the radio
-    fn write_fifo(&mut self, address: u8, data: u8, spi: &mut SPI) -> Result<(), Error<GPIOE, SPIE>> {
-        let mut write_command = [0x00, address, data];
-
-        match self.cs.as_mut() {
-            Some(cs) => {
-                cs.set_low().map_err(Error::GpioError)?;
-                let transfer_result = spi.transfer(&mut write_command);
-                let gpio_error = cs.set_high();
-
-                match (transfer_result, gpio_error) {
-                    (Err(err), Ok(_)) => Err(Error::SpiError(err)),
-                    (Ok(_), Err(err)) => Err(Error::GpioError(err)),
-                    (Err(spi_err), Err(gpio_err)) => Err(Error::GpioSpiError((gpio_err, spi_err))),
-                    _ => Ok(())
-                }
-            },
-            None => {
-                spi.transfer(&mut write_command).map_err(Error::SpiError)?;
                 Ok(())
             }
         }
