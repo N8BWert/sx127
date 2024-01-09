@@ -13,6 +13,9 @@
 //! GPIO 25 (22) -> RESET
 //! 
 
+use std::thread;
+use std::time::Duration;
+
 use rppal::spi::{Spi, Bus, SlaveSelect, Mode};
 use rppal::gpio::Gpio;
 use rppal::hal::Delay;
@@ -57,6 +60,12 @@ fn test_write_sample_configuration() {
             Error::GpioSpiError(_) => panic!("Unexpected GPIO and SPI Error Occurred"),
         }
     };
+
+    if radio.to_tx(&mut spi).is_err() {
+        panic!("Unable to Switch to Tx");
+    }
+
+    thread::sleep(Duration::from_millis(100));
 
     for register in 0x00..=0x41 {
         let result = radio.spi_read(register, &mut spi);

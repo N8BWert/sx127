@@ -46,7 +46,7 @@ enum RadioMode {
     Tx,
 }
 
-pub struct Radio<
+pub struct Radio<'a,
     SPI: Transfer<u8, Error = SPIE> + Write<u8, Error = SPIE>,
     CS: OutputPin<Error = GPIOE>,
     RESET: OutputPin<Error = GPIOE>,
@@ -56,17 +56,19 @@ pub struct Radio<
     cs: Option<CS>,
     reset: RESET,
     radio_mode: RadioMode,
+    configuration: Config<'a>,
     phantom: PhantomData<(SPI, DELAY)>,
 }
 
-impl<GPIOE, SPIE, SPI, CS, RESET, DELAY> Radio<SPI, CS, RESET, DELAY, GPIOE, SPIE>
+impl<'a, GPIOE, SPIE, SPI, CS, RESET, DELAY> Radio<'a, SPI, CS, RESET, DELAY, GPIOE, SPIE>
     where SPI: Transfer<u8, Error = SPIE> + Write<u8, Error = SPIE>,
           CS: OutputPin<Error = GPIOE>, RESET: OutputPin<Error = GPIOE>, DELAY: DelayMs<u8> + DelayUs<u8> {
-    pub fn new(configuration: Config, cs: Option<CS>, reset: RESET, delay: &mut DELAY, spi: &mut SPI,) -> Result<Self, Error<GPIOE, SPIE>> {
+    pub fn new(configuration: Config<'a>, cs: Option<CS>, reset: RESET, delay: &mut DELAY, spi: &mut SPI,) -> Result<Self, Error<GPIOE, SPIE>> {
         let mut device = Self {
             cs,
             reset,
             radio_mode: RadioMode::Standby,
+            configuration: configuration,
             phantom: PhantomData,
         };
 
@@ -205,6 +207,12 @@ impl<GPIOE, SPIE, SPI, CS, RESET, DELAY> Radio<SPI, CS, RESET, DELAY, GPIOE, SPI
                 let new_contents = (current_contents & 0b11111000) | 0b011;
                 self.spi_write(0x01, new_contents, spi)?;
 
+                let (registers, values) = self.configuration.tx_rx_registers();
+
+                for (register, value) in zip(registers, values) {
+                    self.spi_write(register, value, spi)?;
+                }
+
                 // TODO: Wait Some Amount of Time for State Change to Latch
             },
             RadioMode::Tx => (),
@@ -220,6 +228,12 @@ impl<GPIOE, SPIE, SPI, CS, RESET, DELAY> Radio<SPI, CS, RESET, DELAY, GPIOE, SPI
                 let current_contents = self.spi_read(0x01, spi)?;
                 let new_contents = (current_contents & 0b1111_1000) | 0b101;
                 self.spi_write(0x01, new_contents, spi)?;
+
+                let (registers, values) = self.configuration.tx_rx_registers();
+
+                for (register, value) in zip(registers, values) {
+                    self.spi_write(register, value, spi)?;
+                }
 
                 // TODO: Wait Some Amount of Time for State Change to Latch
             },

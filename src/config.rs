@@ -67,49 +67,14 @@ pub struct Config<'a> {
 
 #[cfg(feature = "fsk-ook")]
 impl<'a> Config<'a> {
-    pub fn register_values(&self) -> ([u8; 22], [u8; 22]) {
-        let mut registers = [0u8; 22];
-        let mut values = [0u8; 22];
+    pub fn register_values(&self) -> ([u8; 17], [u8; 17]) {
+        let mut registers = [0u8; 17];
+        let mut values = [0u8; 17];
         let mut current_register = 0x01;
 
         // Set Modulation Type
         registers[current_register] = 0x01;
         values[current_register] = 0b0000_1001 | ((self.modulation_type as u8) << 5);
-        current_register += 1;
-
-        // Set Bitrate
-        // Bit Rate = FXOSC / (Bitrate(15,0) + BitRateFrac/16) = FXOSC / BitRate(15,0)
-        // BitRate(15, 0) = FXOSC / Bit Rate
-        // CURRENTLY HARDCODED TO 250 kbps
-        let _bitrate = (32_000_000 / self.bitrate) as u16;
-
-        registers[current_register] = 0x02;
-        // values[current_register] = ((bitrate & 0xFF00) >> 8) as u8;
-        values[current_register] = 0x00;
-        current_register += 1;
-
-        registers[current_register] = 0x03;
-        // values[current_register] = (bitrate & 0x00FF) as u8;
-        values[current_register] = 0x80;
-        current_register += 1;
-
-        // Set Frequency
-        // Frequency = FSTEP * Frf(23;0) -> Frequency / FSTEP = Frf(23;0)
-        // CURRENTLY HARDCODED TO 900 MHz
-        let _frf = self.frequency / FSTEP;
-        registers[current_register] = 0x06;
-        // values[current_register] = ((frf & 0xFF0000) >> 16) as u8;
-        values[current_register] = 0xE1;
-        current_register += 1;
-
-        registers[current_register] = 0x07;
-        // values[current_register] = ((frf & 0x00FF00) >> 8) as u8;
-        values[current_register] = 0x21;
-        current_register += 1;
-
-        registers[current_register] = 0x08;
-        // values[current_register] = (frf & 0x0000FF) as u8;
-        values[current_register] = 0x32;
         current_register += 1;
 
         // Set PaRamp
@@ -182,6 +147,50 @@ impl<'a> Config<'a> {
             values[current_register] = broadcast_address;
             current_register += 1;
         }
+
+        (registers, values)
+    }
+
+    pub fn tx_rx_registers(&self) -> ([u8; 5], [u8; 5]) {
+        let mut registers = [0u8; 5];
+        let mut values = [0u8; 5];
+        let mut current_register = 0x00;
+        // Bitrate and Frequency can only be configured in Tx mode
+
+        // Set Bitrate
+        // Bit Rate = FXOSC / (Bitrate(15,0) + BitRateFrac/16) = FXOSC / BitRate(15,0)
+        // BitRate(15, 0) = FXOSC / Bit Rate
+        // CURRENTLY HARDCODED TO 250 kbps
+        let _bitrate = (32_000_000 / self.bitrate) as u16;
+
+        registers[current_register] = 0x02;
+        // values[current_register] = ((bitrate & 0xFF00) >> 8) as u8;
+        values[current_register] = 0x00;
+        current_register += 1;
+
+        registers[current_register] = 0x03;
+        // values[current_register] = (bitrate & 0x00FF) as u8;
+        values[current_register] = 0x80;
+        current_register += 1;
+
+        // Set Frequency
+        // Frequency = FSTEP * Frf(23;0) -> Frequency / FSTEP = Frf(23;0)
+        // CURRENTLY HARDCODED TO 900 MHz
+        let _frf = self.frequency / FSTEP;
+        registers[current_register] = 0x06;
+        // values[current_register] = ((frf & 0xFF0000) >> 16) as u8;
+        values[current_register] = 0xE1;
+        current_register += 1;
+
+        registers[current_register] = 0x07;
+        // values[current_register] = ((frf & 0x00FF00) >> 8) as u8;
+        values[current_register] = 0x21;
+        current_register += 1;
+
+        registers[current_register] = 0x08;
+        // values[current_register] = (frf & 0x0000FF) as u8;
+        values[current_register] = 0x32;
+        current_register += 1;
 
         (registers, values)
     }
