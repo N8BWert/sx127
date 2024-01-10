@@ -138,6 +138,38 @@ impl<'a, GPIOE, SPIE, SPI, CS, RESET, DELAY> Radio<'a, SPI, CS, RESET, DELAY, GP
         Ok(())
     }
 
+    pub fn send_hello_world(&mut self, spi: &mut SPI) -> Result<(), Error<GPIOE, SPIE>> {
+        if self.radio_mode != RadioMode::Standby {
+            self.to_standby(spi)?;
+        }
+        
+        let mut write_buffer = [
+            0b1000_0000,
+            16,
+            0x00,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+        ];
+        self.transfer_data_fifo(&mut write_buffer, spi)?;
+
+        // Switch to Tx Mode
+        self.to_tx(spi)?;
+
+        Ok(())
+    }
+
     /// Dequeue Data from the FIFO.
     /// 
     /// Switch to Standby and Dequeue Data.

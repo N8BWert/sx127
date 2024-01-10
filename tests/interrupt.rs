@@ -146,7 +146,7 @@ fn test_rx_interrupt() {
         bitrate: 100_000,
         frequency: 915_000,
         rx_timeout: None,
-        preamble_size: 1,
+        preamble_size: 2,
         sync_word: Some(b"b"),
         crc_on: true,
         address_filtering: AddressFiltering::NONE,
@@ -161,7 +161,7 @@ fn test_rx_interrupt() {
         bitrate: 100_000,
         frequency: 915_000,
         rx_timeout: None,
-        preamble_size: 1,
+        preamble_size: 2,
         sync_word: Some(b"b"),
         crc_on: true,
         address_filtering: AddressFiltering::NONE,
@@ -173,7 +173,7 @@ fn test_rx_interrupt() {
 
     let gpio = Gpio::new().unwrap();
     let mut rx_spi = Spi::new(Bus::Spi0, SlaveSelect::Ss0, 1_000_000, Mode::Mode0).unwrap();
-    let mut tx_spi = Spi::new(Bus::Spi1, SlaveSelect::Ss0, 1_000_000, Mode::Mode0).unwrap();
+    let mut tx_spi = Spi::new(Bus::Spi1, SlaveSelect::Ss2, 1_000_000, Mode::Mode0).unwrap();
     let rx_cs = gpio.get(8u8).unwrap().into_output();
     let tx_cs = gpio.get(16u8).unwrap().into_output();
     let rx_reset = gpio.get(25u8).unwrap().into_output();
@@ -223,17 +223,108 @@ fn test_rx_interrupt() {
         println!("Sent Data");
     }).unwrap();
 
-    if tx_radio.send_data(b"Hello World", &mut tx_spi).is_err() {
+    if tx_radio.send_hello_world(&mut tx_spi).is_err() {
         panic!("Unable to Send Data");
     }
 
+    // if tx_radio.send_data(b"Hello World", &mut tx_spi).is_err() {
+    //     panic!("Unable to Send Data");
+    // }
+
     thread::sleep(Duration::from_secs(5));
+}
 
-    let mut buffer = [0x00; 65];
-    tx_radio.transfer_data_fifo(&mut buffer, &mut tx_spi);
-    println!("Buffer: {:?}", buffer);
+#[test]
+fn test_rx_interrupt_2() {
+    let rx_config = Config {
+        modulation_type: ModulationType::FSK,
+        bitrate: 100_000,
+        frequency: 915_000,
+        rx_timeout: None,
+        preamble_size: 1,
+        sync_word: Some(b"b"),
+        crc_on: true,
+        address_filtering: AddressFiltering::NONE,
+        payload_length: None,
+        node_address: None,
+        broadcast_address: None,
+        pa_ramp: Some(PaRamp::PA50),
+    };
 
-    let mut buffer = [0x00; 65];
-    rx_radio.transfer_data_fifo(&mut buffer, &mut rx_spi);
-    println!("Buffer: {:?}", buffer);
+    let tx_config = Config {
+        modulation_type: ModulationType::FSK,
+        bitrate: 100_000,
+        frequency: 915_000,
+        rx_timeout: None,
+        preamble_size: 1,
+        sync_word: Some(b"b"),
+        crc_on: true,
+        address_filtering: AddressFiltering::NONE,
+        payload_length: None,
+        node_address: None,
+        broadcast_address: None,
+        pa_ramp: Some(PaRamp::PA50),
+    };
+
+    let gpio = Gpio::new().unwrap();
+    let mut rx_spi = Spi::new(Bus::Spi0, SlaveSelect::Ss0, 1_000_000, Mode::Mode0).unwrap();
+    let mut tx_spi = Spi::new(Bus::Spi1, SlaveSelect::Ss2, 1_000_000, Mode::Mode0).unwrap();
+    let rx_cs = gpio.get(8u8).unwrap().into_output();
+    let tx_cs = gpio.get(16u8).unwrap().into_output();
+    let rx_reset = gpio.get(25u8).unwrap().into_output();
+    let tx_reset = gpio.get(26u8).unwrap().into_output();
+    let mut rx_delay = Delay::new();
+    let mut tx_delay = Delay::new();
+
+    let rx_radio = Radio::new(rx_config, Some(rx_cs), rx_reset, &mut rx_delay, &mut rx_spi);
+
+    let mut rx_radio = match rx_radio {
+        Ok(radio) => radio,
+        Err(err) => match err {
+            Error::DataExceedsFifoSize => panic!("Data Exceeds FIFO Size"),
+            Error::GpioError(_) => panic!("Gpio Error Occurred"),
+            Error::SpiError(_) => panic!("SPI Error Occurred"),
+            Error::UnexpectedConfiguration(register, expected, found) => panic!("Unexpected Configuration for Register {}, Expected {} but found {}", register, expected, found),
+            Error::GpioSpiError(_) => panic!("Unexpected GPIO and SPI Error Occurred"),
+        }
+    };
+
+    let tx_radio = Radio::new(tx_config, Some(tx_cs), tx_reset, &mut tx_delay, &mut tx_spi);
+
+    let mut tx_radio = match tx_radio {
+        Ok(radio) => radio,
+        Err(err) => match err {
+            Error::DataExceedsFifoSize => panic!("Data Exceeds FIFO Size"),
+            Error::GpioError(_) => panic!("Gpio Error Occurred"),
+            Error::SpiError(_) => panic!("SPI Error Occurred"),
+            Error::UnexpectedConfiguration(register, expected, found) => panic!("Unexpected Configuration for Register {}, Expected {} but found {}", register, expected, found),
+            Error::GpioSpiError(_) => panic!("Unexpected GPIO and SPI Error Occurred"),
+        }
+    };
+
+    let mut rx_interrupt = gpio.get(24u8).unwrap().into_input();
+    rx_interrupt.set_async_interrupt(rppal::gpio::Trigger::RisingEdge, move |_| {
+        println!("Received Data");
+    }).unwrap();
+
+    if rx_radio.to_rx(&mut rx_spi).is_err() {
+        panic!("Unable to Set to Rx");
+    }
+
+    thread::sleep(Duration::from_secs(1));
+
+    let mut tx_interrupt = gpio.get(13).unwrap().into_input();
+    tx_interrupt.set_async_interrupt(rppal::gpio::Trigger::RisingEdge, move |_| {
+        println!("Sent Data");
+    }).unwrap();
+
+    if tx_radio.send_hello_world(&mut tx_spi).is_err() {
+        panic!("Unable to Send Data");
+    }
+
+    // if tx_radio.send_data(b"Hello World", &mut tx_spi).is_err() {
+    //     panic!("Unable to Send Data");
+    // }
+
+    thread::sleep(Duration::from_secs(5));
 }

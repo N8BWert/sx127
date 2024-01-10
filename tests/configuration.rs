@@ -12,6 +12,17 @@
 //! GPIO 8 (24) -> CS
 //! GPIO 25 (22) -> RESET
 //! 
+//! Wiring (Raspbyerr Pi -> RFM9x LoRa (SPI 2))
+//! 3v3 Power(1) -> VIN
+//! Ground (6) -> GND
+//! _ -> EN
+//! GPIO 13 (33) -> G0
+//! GPIO 21 (40) -> SCK
+//! GPIO 19 (35) -> MISO
+//! GPIO 20 (38) -> MOSI
+//! GPIO 16 (36) -> CS
+//! GPIO 26 (37) -> RESET
+//! 
 
 use std::thread;
 use std::time::Duration;
@@ -71,7 +82,61 @@ fn test_write_sample_configuration() {
         let result = radio.spi_read(register, &mut spi);
 
         if let Ok(result) = result {
-            println!("Read {:#010b} from Register {:#x}", result, register);
+            println!("Read {:#04x} from Register {:#x}", result, register);
+        } else {
+            println!("Unable to Read from Register {:#x}", register);
+        }
+    }
+}
+
+#[test]
+fn test_write_sample_configuration_2() {
+    let sample_configuration = Config{
+        modulation_type: sx127::config::ModulationType::FSK,
+        bitrate: 100_000u32,
+        frequency: 915_000,
+        rx_timeout: None,
+        preamble_size: 1u16,
+        sync_word: Some(b"b"),
+        crc_on: true,
+        address_filtering: sx127::config::AddressFiltering::NodeAddress,
+        payload_length: None,
+        node_address: Some(0u8),
+        broadcast_address: None,
+        pa_ramp: Some(sx127::config::PaRamp::PA50),
+    };
+
+    let gpio = Gpio::new().unwrap();
+    let mut spi = Spi::new(Bus::Spi1, SlaveSelect::Ss2, 1_000_000, Mode::Mode0).unwrap();
+    let cs = gpio.get(16u8).unwrap().into_output();
+    let reset = gpio.get(26u8).unwrap().into_output();
+    let mut delay = Delay::new();
+
+    // Initialize the Radio Driver
+    let radio = Radio::new(sample_configuration, Some(cs), reset, &mut delay, &mut spi);
+
+    let mut radio = match radio {
+        Ok(radio) => radio,
+        Err(err) => match err {
+            Error::DataExceedsFifoSize => panic!("Data Exceeds FIFO Size"),
+            Error::GpioError(_) => panic!("Gpio Error Occurred"),
+            Error::SpiError(_) => panic!("SPI Error Occurred"),
+            Error::UnexpectedConfiguration(register, expected, found) => panic!("Unexpected Configuration for Register {}, Expected {} but found {}", register, expected, found),
+            Error::GpioSpiError(_) => panic!("Unexpected GPIO and SPI Error Occurred"),
+        }
+    };
+
+    if radio.to_tx(&mut spi).is_err() {
+        panic!("Unable to Switch to Tx");
+    }
+
+    thread::sleep(Duration::from_millis(100));
+
+    for register in 0x00..=0x41 {
+        let result = radio.spi_read(register, &mut spi);
+
+        if let Ok(result) = result {
+            println!("Read {:#04x} from Register {:#x}", result, register);
         } else {
             println!("Unable to Read from Register {:#x}", register);
         }

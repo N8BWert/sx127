@@ -67,9 +67,9 @@ pub struct Config<'a> {
 
 #[cfg(feature = "fsk-ook")]
 impl<'a> Config<'a> {
-    pub fn register_values(&self) -> ([u8; 17], [u8; 17]) {
-        let mut registers = [0u8; 17];
-        let mut values = [0u8; 17];
+    pub fn register_values(&self) -> ([u8; 18], [u8; 18]) {
+        let mut registers = [0u8; 18];
+        let mut values = [0u8; 18];
         let mut current_register = 0x01;
 
         // Set Modulation Type
@@ -123,16 +123,24 @@ impl<'a> Config<'a> {
 
         // Set Packet Config Register
         registers[current_register] = 0x30;
-        values[current_register] = ((if self.payload_length.is_some() { 1u8 } else { 0u8 }) << 7) | 
-                                    ((self.crc_on as u8) << 4) |
-                                    ((self.address_filtering as u8) << 1);
+        values[current_register] = 0b1001_0000;
+        // values[current_register] = ((if self.payload_length.is_some() { 1u8 } else { 0u8 }) << 7) | 
+        //                             ((self.crc_on as u8) << 4) |
+        //                             ((self.address_filtering as u8) << 1);
         current_register += 1;
 
-        if let Some(payload_length) = self.payload_length {
-            registers[current_register] = 0x31;
-            values[current_register] = 0b0100_0000 | ((payload_length & (0x07 << 8)) >> 8) as u8;
-            current_register += 1;
-        }
+        // if let Some(payload_length) = self.payload_length {
+        //     registers[current_register] = 0x31;
+        //     values[current_register] = 0b0100_0000 | ((payload_length & (0x07 << 8)) >> 8) as u8;
+        //     current_register += 1;
+        // }
+        registers[current_register] = 0x31;
+        values[current_register] = 0b0100_0000;
+        current_register += 1;
+
+        registers[current_register] = 0x32;
+        values[current_register] = 16;
+        current_register += 1;
 
         // Set Node Address
         if let Some(node_address) = self.node_address {
@@ -160,17 +168,17 @@ impl<'a> Config<'a> {
         // Set Bitrate
         // Bit Rate = FXOSC / (Bitrate(15,0) + BitRateFrac/16) = FXOSC / BitRate(15,0)
         // BitRate(15, 0) = FXOSC / Bit Rate
-        // CURRENTLY HARDCODED TO 250 kbps
+        // CURRENTLY HARDCODED TO 1.2 kbps
         let _bitrate = (32_000_000 / self.bitrate) as u16;
 
         registers[current_register] = 0x02;
         // values[current_register] = ((bitrate & 0xFF00) >> 8) as u8;
-        values[current_register] = 0x00;
+        values[current_register] = 0x0D;
         current_register += 1;
 
         registers[current_register] = 0x03;
         // values[current_register] = (bitrate & 0x00FF) as u8;
-        values[current_register] = 0x80;
+        values[current_register] = 0x05;
         current_register += 1;
 
         // Set Frequency
