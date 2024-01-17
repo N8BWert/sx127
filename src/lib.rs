@@ -506,7 +506,7 @@ impl<SPI, CS, RESET, DELAY, E> LoRa<SPI, CS, RESET, DELAY>
         self.write_register(Register::RegModemConfig3.addr(), config_3)
     }
 
-    fn read_register(&mut self, reg: u8) -> Result<u8,Error<E, CS::Error, RESET::Error>> {
+    pub fn read_register(&mut self, reg: u8) -> Result<u8,Error<E, CS::Error, RESET::Error>> {
         self.cs.set_low().map_err(CS)?;
 
         let mut buffer = [reg & 0x7f, 0];
